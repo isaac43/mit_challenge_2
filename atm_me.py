@@ -47,12 +47,11 @@ class PersistenceMSIS():
         if self.initial_date is None:
             self.initial_date = dt
 
-        # Find the closest row in OMNI2 data
-        row = self.omni2_data.loc[self.omni2_data['Timestamp']
-                                  == self.initial_date]
+        # Find the closest row in OMNI2 data (last one)
+        row = self.omni2_data.iloc[-1]
 
-        f107_daily = row['f10.7_index'].values[0]
-        ap_current = row['ap_index_nT'].values[0]
+        f107_daily = row['f10.7_index']
+        ap_current = row['ap_index_nT']
 
         # Prepare Ap indices using the helper function
         aps = self._prepare_ap_indices(self.initial_date, ap_current)
@@ -80,14 +79,13 @@ class PersistenceMSIS():
         Returns:
             list: Prepared Ap array for MSIS input.
         """
-        index = self.omni2_data.index[self.omni2_data['Timestamp']
-                                      == datetime_input][0]
+        index = self.omni2_data['Timestamp'].index[-1]
 
         # Compute 3-hourly Ap indices
         ap_3hr_indices = [
             self.omni2_data.iloc[index -
                                  i]['ap_index_nT'] if (index - i) >= 0 else ap_current
-            for i in range(0, 4)
+            for i in range(0, 10, 3)
         ]
 
         # Compute averages for specific periods
@@ -237,9 +235,9 @@ class PersistenceModel(nn.Module):
         states, densities = prop_orbit(
             initial_state,
             MSISPersistenceAtmosphere,
+            with_drag=False,
             atm_model_data=omni2_data,
-            plot_trajectory=self.plot,
-            # horizon=50000
+            plot_trajectory=self.plot
         )
         return states, densities
         # return self._convert_to_df(states, densities)

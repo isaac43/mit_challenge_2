@@ -56,7 +56,7 @@ deg = np.pi / 180  # Degrees-Radians conversion
 # =============================================================================
 # Propagator
 # =============================================================================
-def prop_orbit(initial_state, CustomAtmosphere, plot_trajectory=True, **kwargs):
+def prop_orbit(initial_state, CustomAtmosphere, with_drag=False, plot_trajectory=True, **kwargs):
     """
     Propagates the orbit of a satellite over a given duration using a high-fidelity numerical propagator.
 
@@ -103,9 +103,12 @@ def prop_orbit(initial_state, CustomAtmosphere, plot_trajectory=True, **kwargs):
         tmstp.year,
         tmstp.month,
         tmstp.day,
-        0,
-        0,
-        00.000,
+        tmstp.hour,
+        # 0,
+        tmstp.minute,
+        # 0,
+        float(tmstp.second),
+        # 00.000,
         utc
     )
 
@@ -119,9 +122,9 @@ def prop_orbit(initial_state, CustomAtmosphere, plot_trajectory=True, **kwargs):
     # Initial Orbit preparation
     rp0 = r_Earth + 400  # perigee radius (m)
     rap0 = r_Earth + 600  # apogee radius (m)
-
+    
     initial_orbit = KeplerianOrbit(
-        initial_state.get('Semi-Major Axis (km)', (rp0 + rap0) / 2) * 1e3,
+        initial_state.get('Semi-major Axis (km)', (rp0 + rap0) / 2) * 1e3,
         initial_state.get('Eccentricity', (rap0 - rp0) / (rap0 + rp0)),
         initial_state.get('Inclination (deg)', 45) * deg,
         initial_state.get('Argument of Perigee (deg)', 30) * deg,
@@ -180,8 +183,9 @@ def prop_orbit(initial_state, CustomAtmosphere, plot_trajectory=True, **kwargs):
     propagator_num.addForceModel(ThirdBodyAttraction(moon))
 
     # Add Custom Drag Force
-    dragForce = DragForce(atmosphere, satmodel)
-    propagator_num.addForceModel(dragForce)
+    if with_drag:
+        dragForce = DragForce(atmosphere, satmodel)
+        propagator_num.addForceModel(dragForce)
 
     # Results generation
     tic = time.time()
@@ -191,11 +195,9 @@ def prop_orbit(initial_state, CustomAtmosphere, plot_trajectory=True, **kwargs):
     states = [initialState]
     for i1 in steps:
         states.append(propagator_num.propagate(tspan1[i1], tspan1[i1 + 1]))
-    print(len(states))
 
-    densities = [atmosphere.getDensity(state.getDate(),
-                                       state.getPVCoordinates().getPosition(),
-                                       state.getFrame()) for state in states]
+    densities = [atmosphere.getDensity(state.getDate(), state.getPVCoordinates(
+    ).getPosition(), state.getFrame()) for state in states]
 
     toc = time.time()
 
