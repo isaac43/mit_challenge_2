@@ -4,28 +4,19 @@ import pandas as pd
 import catboost as cb
 import pytz
 import time
-# from datetime import datetime
-# from orekit.pyhelpers import setup_orekit_curdir
-# from org.orekit.time import AbsoluteDate, TimeScalesFactory
-# from org.orekit.frames import FramesFactory
-# from org.orekit.orbits import KeplerianOrbit
-# from org.orekit.utils import Constants
 import json
-# from propagator import prop_orbit
-# from atm import *
-from utils import create_features_for_prediction
+from utils import create_features_and_target
 import os
-print(os.listdir())
-TRAINED_MODEL_DIR = Path('/../trained_model/')
-print(os.listdir('/../trained_model/'))
 
-TEST_DATA_DIR = Path('/dataset/test/')
-TEST_PREDS_FP = Path('/submission/submission.json')
+TRAINED_MODEL_DIR = Path('/app/ingested_program/model_by_timestamp.cbm')
+
+TEST_DATA_DIR = os.path.join('/app','data', 'dataset', 'test')
+TEST_PREDS_FP = Path('/app/output/prediction.json')
 
 # Paths
-initial_states_file = os.path.join(TEST_DATA_DIR, "initial-states.csv")
-omni2_path = os.path.join(TEST_DATA_DIR, "OMNI2")
-print(os.listdir(omni2_path))
+
+initial_states_file = os.path.join(TEST_DATA_DIR, "initial_states.csv")
+omni2_path = os.path.join(TEST_DATA_DIR, "omni2")
 
 initial_states = pd.read_csv(initial_states_file)
 
@@ -39,7 +30,7 @@ initial_states = initial_states.set_index('File ID')
 # Process each row of the initial states
 
 model = cb.CatBoostRegressor()
-model.load_model(TRAINED_MODEL_DIR/'model_by_timestamp.cbm')
+model.load_model(TRAINED_MODEL_DIR)
 predictions = {}
 for file_id in initial_states.index:
     # Load corresponding OMNI2 data
@@ -49,10 +40,15 @@ for file_id in initial_states.index:
         print(f"OMNI2 file {omni2_file} not found! Skipping...")
         continue
 
-    df_features = create_features_for_prediction(file_id,initial_states,omni2_file)
+    df_features = create_features_and_target(id = file_id,
+                                             initial_states = initial_states,
+                                             #omni = None,
+                                             omni_path = omni2_file, 
+                                             predict_mean=False,
+                                             training_mode=False).reset_index()
     df_features = df_features[model.feature_names_ +['Timestamp'] ]
 
-    result = model.predict(df_features.drop(['Timestamp'],axis=1))
+    result = model.predict(df_features.drop(['Timestamp'],axis=1))/ 10**12
     predictions[file_id] = {
         "Timestamp": df_features["Timestamp"].dt.tz_localize(pytz.utc).apply(lambda win:win.isoformat()).to_list(),
         "Orbit Mean Density (kg/m^3)": list(result)
@@ -64,4 +60,3 @@ with open(TEST_PREDS_FP, "w") as outfile:
     json.dump(predictions, outfile)
 
 print("Saved predictions to: {}".format(TEST_PREDS_FP))
-time.sleep(360)
