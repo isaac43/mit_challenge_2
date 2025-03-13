@@ -8,7 +8,7 @@ import json
 from utils import create_features_and_target
 import os
 
-TRAINED_MODEL_DIR = Path('/app/ingested_program/model_by_timestamp.cbm')
+TRAINED_MODEL_DIR = Path('/app/ingested_program/model_by_timestamp_xgboost_second.cbm')
 
 TEST_DATA_DIR = os.path.join('/app','data', 'dataset', 'test')
 TEST_PREDS_FP = Path('/app/output/prediction.json')

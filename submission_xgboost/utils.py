@@ -1,5 +1,7 @@
 import pandas as pd
 from datetime import datetime, timedelta
+import numpy as np
+from datetime import datetime, timezone
 import os
 # noqa
 
@@ -34,31 +36,28 @@ def create_features_and_target(id,initial_states,omni = None,sat = None,path='ph
     data_sat['Timestamp'] = pd.to_datetime(data_sat['Timestamp'],format='%Y-%m-%d %H:%M:%S')
     data_sat['File Id'] = id
 
-    df_features = pd.concat([data_omni.drop('Timestamp',axis=1).mean(0),
-                             data_omni.drop('Timestamp',axis=1).max(0),
-                             data_omni.drop('Timestamp',axis=1).min(0),
-                             data_omni.drop('Timestamp',axis=1).iloc[-1]],axis=1)
-    df_features.columns = ['mean','max','min','last']
-    df_features = df_features.unstack()
-    df_features.index = df_features.index.get_level_values(0)+'_'+ df_features.index.get_level_values(1)
+    df_features = pd.concat([data_omni.drop(['Timestamp'],axis=1).mean(0).add_prefix('mean_'),
+                             data_omni.drop(['Timestamp'],axis=1).max(0).add_prefix('max_'),
+                             data_omni.drop(['Timestamp'],axis=1).min(0).add_prefix('min_'),
+                             data_omni.drop(['Timestamp'],axis=1).iloc[-1].add_prefix('last_')],axis=0)
     
-    df_position = initial_states.loc[id].rename({'Timestamp':'Timestamp_initial'})
     
-    df_features = pd.concat([df_position,df_features],axis=0)
-    df_features['File Id'] = id
-    
+    df_features['File Id'] = id    
+    df_position = initial_states.loc[[id]].rename({'Timestamp':'Timestamp_initial'},axis=1)
+    df_position['File Id'] = id
+    df_features = pd.merge(df_features.to_frame().T,df_position,on='File Id')
     if training_mode:
         if not predict_mean :
-            df_features = pd.concat([df_features.to_frame().T,data_sat]).ffill().dropna(subset='Orbit Mean Density (kg/m^3)')
-            df_features['Time_until_y'] = (df_features['Timestamp'] - df_features['Timestamp_initial']).dt.seconds.copy()
+            df_features = pd.merge(data_sat,df_features,on='File Id')
+            df_features['Time_until_y'] = (df_features['Timestamp'] - df_features['Timestamp_initial']).dt.seconds
             df_features = df_features.set_index('Timestamp').drop('File Id',axis=1)
         else:
             df_features.loc['Target'] = data_sat['Orbit Mean Density (kg/m^3)'].mean()
             df_features = df_features.to_frame().T.set_index('File Id')
     else:
         if not predict_mean:
-            df_features = pd.merge(df_features.to_frame().T,data_sat,on = 'File Id').ffill()
-            df_features['Time_until_y'] = (df_features['Timestamp'] - df_features['Timestamp_initial']).dt.seconds.copy()
+            df_features = pd.merge(data_sat,df_features,on='File Id')
+            df_features['Time_until_y'] = (df_features['Timestamp'] - df_features['Timestamp_initial']).dt.seconds
             df_features = df_features.set_index('Timestamp').drop('File Id',axis=1)
         else:
             df_features = df_features.to_frame().T.set_index('File Id')
