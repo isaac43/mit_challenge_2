@@ -8,14 +8,14 @@ import json
 from utils import create_features_and_target
 import os
 
-TRAINED_MODEL_DIR = Path('/app/ingested_program/model_by_timestamp_xgboost_second.cbm')
+TRAINED_MODEL_DIR = Path('/app/ingested_program/model_by_mean_xgboost_3.cbm')
 
 TEST_DATA_DIR = os.path.join('/app','data', 'dataset', 'test')
 TEST_PREDS_FP = Path('/app/output/prediction.json')
 
 # Paths
 
-initial_states_file = os.path.join(TEST_DATA_DIR, "initial_states.csv")
+initial_states_file = os.path.join('/app/input_data',"initial_states.csv")#os.path.join(TEST_DATA_DIR, "initial_states.csv")
 omni2_path = os.path.join(TEST_DATA_DIR, "omni2")
 
 initial_states = pd.read_csv(initial_states_file)
