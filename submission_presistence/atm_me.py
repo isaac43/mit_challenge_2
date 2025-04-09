@@ -13,7 +13,7 @@ from org.hipparchus.geometry.euclidean.threed import Vector3D
 from org.orekit.frames import FramesFactory, Frame
 from org.orekit.bodies import OneAxisEllipsoid
 from org.orekit.utils import IERSConventions
-from propagator_me import prop_orbit
+from submission_presistence.propagator_me import prop_orbit
 import torch.nn as nn
 
 
@@ -235,7 +235,7 @@ class PersistenceModel(nn.Module):
         states, densities = prop_orbit(
             initial_state,
             MSISPersistenceAtmosphere,
-            with_drag=False,
+            with_drag=True,
             atm_model_data=omni2_data,
             plot_trajectory=self.plot
         )

@@ -36,21 +36,21 @@ plt.rcParams.update({'font.size': 12})
 # =============================================================================
 # Constants/Basics
 # =============================================================================
-r_Earth = Constants.IERS2010_EARTH_EQUATORIAL_RADIUS  # m
-# International Terrestrial Reference Frame, earth fixed
-itrf = FramesFactory.getITRF(IERSConventions.IERS_2010, True)
+r_Earth = Constants.IERS2010_EARTH_EQUATORIAL_RADIUS #m
+itrf    = FramesFactory.getITRF(IERSConventions.IERS_2010, True) # International Terrestrial Reference Frame, earth fixed
 inertialFrame = FramesFactory.getEME2000()
 earth = OneAxisEllipsoid(r_Earth,
                          Constants.IERS2010_EARTH_FLATTENING,
                          itrf)
-mu = Constants.IERS2010_EARTH_MU  # m^3/s^2
-degree = 70
-torder = 70
+mu = Constants.IERS2010_EARTH_MU #m^3/s^2
+degree = 2
+torder = 2
 cr = 1.0
 utc = TimeScalesFactory.getUTC()
 sun = CelestialBodyFactory.getSun()
 moon = CelestialBodyFactory.getMoon()
-deg = np.pi / 180  # Degrees-Radians conversion
+deg = np.pi / 180 # Degrees-Radians conversion
+
 
 
 # =============================================================================
@@ -81,9 +81,9 @@ def prop_orbit(initial_state, CustomAtmosphere, with_drag=False, plot_trajectory
 
     # Integrator settings
     minStep = 1e-6
-    maxstep = 100.0
+    maxstep = 1.0e4
     initStep = 1.0
-    positionTolerance = 1e-4
+    positionTolerance = 1e-3
 
     # Satellite variables
     satellite_mass = kwargs.get('satellite_mass', 260.0)
