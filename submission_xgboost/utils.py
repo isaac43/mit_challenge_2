@@ -89,7 +89,6 @@ def extract_temporal_features(df):
         return np.polyfit(np.log(lags), np.log(tau), 1)[0]*2.0
 
     def _spectral_entropy(series):
-        print(series)
         psd = periodogram(series)[1]
         psd_norm = psd / psd.sum()
         return -np.sum(psd_norm * np.log(psd_norm + 1e-12))
@@ -193,6 +192,7 @@ def geomagnetic_response_features(df):
     # Dst index prediction features
     df['dst_delay_3h'] = df['Dst_index_nT'].shift(-3)
     df['ae_auroral_power'] = df['AE_index_nT'] - df['AL_index_nT']
+    df['range_aurore_activity'] = df['AL_index_nT'] - df['AU_index_nT']
     
     # Substorm occurrence probability
     df['substorm_prob'] = 1/(1 + np.exp(
@@ -200,13 +200,11 @@ def geomagnetic_response_features(df):
               df['BZ_nT_GSM']/10 + 
               df['SW_Proton_Density_N_cm3']/10)))
     
-    return df[['dst_delay_3h', 'ae_auroral_power', 'substorm_prob']]
+    return df[['dst_delay_3h', 'ae_auroral_power','range_aurore_activity', 'substorm_prob']]
 
 def solar_rotation_features(df):
     """27-day solar rotation related features"""
-    # Bartels rotation phase
-    df['bartels_phase'] = (df['DOY'] % 27)/27 * 360
-    
+     
     # 27-day running percentiles
     for param in ['Scalar_B_nT', 'SW_Plasma_Speed_km_s']:
         df[f'{param}_27d_percentile'] = df[param].rolling(27*24).rank(pct=True)
@@ -215,7 +213,7 @@ def solar_rotation_features(df):
     df['sw_recurrence'] = df['SW_Plasma_Speed_km_s'].rolling(27*24).corr(
         df['SW_Plasma_Speed_km_s'].shift(27*24))
     
-    return df[['bartels_phase','Scalar_B_nT_27d_percentile', 'SW_Plasma_Speed_km_s_27d_percentile','sw_recurrence']]
+    return df[['Scalar_B_nT_27d_percentile', 'SW_Plasma_Speed_km_s_27d_percentile','sw_recurrence']]
 
 def event_detection_features(df):
     """Automated detection of space weather events"""
@@ -236,7 +234,7 @@ def event_detection_features(df):
 
 def extract_space_weather_features(df):
     """Master function combining all feature categories"""
-    df = df.sort_values('Timestamp').reset_index(drop=True)
+    #df = df.sort_values('Timestamp').reset_index(drop=True)
     
     feature_sets = [
         solar_wind_coupling_features,
@@ -256,7 +254,7 @@ def extract_space_weather_features(df):
     return df
 
 def extract_features_from_omni(data_omni_init ):
-    data_omni = data_omni_init.copy()
+    data_omni = data_omni_init.copy().drop('Timestamp',axis=1)
 
 
     #### Correct the data with na values
@@ -309,20 +307,17 @@ def extract_features_from_omni(data_omni_init ):
         'Proton_flux_>30_Mev': 99999.99,
         'Proton_flux_>60_Mev': 99999.99
     }
-
-    for factor in incorrect_values.keys():
-        data_omni[factor] = data_omni[factor].mask(data_omni[factor]==incorrect_values[factor])
-
+    
+    data_omni = data_omni.replace(incorrect_values,np.nan)
+    data_omni = data_omni.interpolate()
 
     #### Add some features based on physics
     data_omni_expanded = extract_space_weather_features(data_omni)
-    data_omni_expanded['Range_Aurore_Activity'] = data_omni_expanded['AL_index_nT'] - data_omni_expanded['AU_index_nT']
-        
     
-    features_mode = {}
-    for factor in ['ID_for_IMF_spacecraft', 'ID_for_SW_Plasma_spacecraft','num_points_IMF_averages', 'num_points_Plasma_averages']:
-        features_mode[factor + '_mode'] = data_omni[factor].mode()[0]
-        features_mode[factor + '_nb_unique'] = len(data_omni[factor].unique())
+    # features_mode = {}
+    # for factor in ['ID_for_IMF_spacecraft', 'ID_for_SW_Plasma_spacecraft','num_points_IMF_averages', 'num_points_Plasma_averages']:
+    #     features_mode[factor + '_mode'] = data_omni[factor].mode()[0]
+    #     features_mode[factor + '_nb_unique'] = len(data_omni[factor].unique())
 
 
     columns_to_compute_math = [
@@ -338,30 +333,37 @@ def extract_features_from_omni(data_omni_init ):
        'Flow_pressure', 'E_electric_field', 'Plasma_Beta', 'Alfen_mach_number',
        'Magnetosonic_Mach_number', 'Quasy_Invariant', 'Kp_index',
        'R_Sunspot_No', 'Dst_index_nT', 'ap_index_nT', 'f10.7_index',
-       'AE_index_nT', 'AL_index_nT', 'AU_index_nT', 'Range_Aurore_Activity',
+       'AE_index_nT', 'AL_index_nT', 'AU_index_nT', 
        'pc_index', 'Lyman_alpha',
        'Proton_flux_>1_Mev', 'Proton_flux_>2_Mev', 'Proton_flux_>4_Mev',
        'Proton_flux_>10_Mev', 'Proton_flux_>30_Mev', 'Proton_flux_>60_Mev',
-       'Flux_FLAG','epsilon_parameter', 'dynamical_pressure',
+       'Flux_FLAG',
+       'epsilon_parameter', 'dynamical_pressure',
        'reconnection_rate', 'Bz_south_duration', 'clock_angle',
        'cone_angle_std', 'sep_event_flag', 'flux_ratio_1_Mev_2_Mev',
        'flux_ratio_2_Mev_4_Mev', 'flux_ratio_4_Mev_10_Mev',
-       'flux_ratio_10_Mev_30_Mev', 'flux_ratio_30_Mev_60_Mev', 'dst_delay_3h',
-       'ae_auroral_power', 'substorm_prob', 'bartels_phase',
-       'Scalar_B_nT_27d_percentile', 'SW_Plasma_Speed_km_s_27d_percentile',
+       'flux_ratio_10_Mev_30_Mev', 'flux_ratio_30_Mev_60_Mev',
+       'ae_auroral_power','range_aurore_activity', 'substorm_prob',
+      
        'sw_recurrence', 'ssc_detection', 'cme_sheath_flag', 'rb_enhancement'
     ]
+    particular_columns = [ 'dst_delay_3h', 'Scalar_B_nT_27d_percentile', 'SW_Plasma_Speed_km_s_27d_percentile']
+
+    data_omni_expanded_particular = data_omni_expanded[particular_columns]
     data_omni_expanded = data_omni_expanded[columns_to_compute_math]
-    features_med = data_omni_expanded.median(0).add_suffix('_med').to_dict()
+    #features_med = data_omni_expanded.median(0).add_suffix('_med').to_dict()
     features_mean = data_omni_expanded.mean(0).add_suffix('_mean').to_dict()
-    features_max = data_omni_expanded.max(0).add_suffix('_max').to_dict()
-    features_min = data_omni_expanded.min(0).add_suffix('_min').to_dict()
+    # features_max = data_omni_expanded.max(0).add_suffix('_max').to_dict()
+    # features_min = data_omni_expanded.min(0).add_suffix('_min').to_dict()
 
-    features_std = data_omni_expanded.std(0).add_suffix('_std').to_dict()
-    features_last = data_omni_expanded.ffill().iloc[-1].add_suffix('_last').to_dict()
+    # features_std = data_omni_expanded.std(0).add_suffix('_std').to_dict()
+    #features_last = data_omni_expanded.ffill().iloc[-1].add_suffix('_last').to_dict()
+    features_last_7 = data_omni_expanded.ffill().iloc[-8:].mean(0).add_suffix('_last_7').to_dict()
 
-    all_features = {**features_mode, **features_med,**features_mean,**features_std,**features_last,**features_max,**features_min}
+    #features_last_7_particular = data_omni_expanded_particular.ffill().iloc[-8:].mean(0).add_suffix('_last_7').to_dict()
 
+    all_features = {**features_mean,**features_last_7}#,**features_mode,**features_last_7_particular,**features_std,**features_max,**features_min}
+    
     return all_features
 
     data_omni = extract_space_weather_features(data_omni)
@@ -383,7 +385,6 @@ def extract_features_from_omni(data_omni_init ):
     return df_features
 
 def create_features_and_target(id,initial_states,omni = None,sat = None,path='phase_1/',predict_mean=True,training_mode=False,omni_path=None):
-
     if omni is None and omni_path is None:
         all_files_omni = os.listdir(path+"omni2/")
         file_omni = [i for i in all_files_omni if i.split('-')[1]==id][0]
@@ -391,18 +392,19 @@ def create_features_and_target(id,initial_states,omni = None,sat = None,path='ph
     elif omni_path is not None:
         data_omni = pd.read_csv(omni_path)
     else:
-        data_omni = omni   
+        data_omni = omni.copy()
     
     if sat is None:
         if training_mode:
             all_files_sat = os.listdir(path+ "sat_density/")
             file_sat = [i for i in all_files_sat if i.split('-')[1]==id][0]
             data_sat = pd.read_csv(path+'sat_density/'+file_sat)
+            data_sat['Timestamp'] = pd.to_datetime(data_sat['Timestamp'],format='%Y-%m-%d %H:%M:%S')
         else:
             data_sat = pd.DataFrame(create_pred_timestamps(initial_states['Timestamp'].loc[id]),columns=['Timestamp'])       
     else:
-        data_sat = sat
-    data_sat['Timestamp'] = pd.to_datetime(data_sat['Timestamp'],format='%Y-%m-%d %H:%M:%S')
+        data_sat = sat.copy()
+        data_sat['Timestamp'] = pd.to_datetime(data_sat['Timestamp'],format='%Y-%m-%d %H:%M:%S')
     data_sat['File Id'] = id
 
     df_features_from_omni = pd.DataFrame(extract_features_from_omni(data_omni),index=pd.Index([id], name='File Id'))
@@ -410,25 +412,42 @@ def create_features_and_target(id,initial_states,omni = None,sat = None,path='ph
 
     df_position = initial_states.loc[[id]].rename({'Timestamp':'Timestamp_initial'},axis=1)
     df_position['File Id'] = id
-    df_features = pd.merge(df_features_from_omni,df_position,on='File Id')
+    df_features = pd.merge(df_position,df_features_from_omni,on='File Id')
 
+    # df_projected_altitude = project_altitude(initial_states.loc[id]['Semi-major Axis (km)']*1000,
+    #                 initial_states.loc[id]['Eccentricity'],
+    #                 initial_states.loc[id]['True Anomaly (deg)'],
+    #                 initial_states.loc[id]['Timestamp'])
+    
+    epoch = initial_states.loc[id]['Timestamp']
+    a = initial_states.loc[id]['Semi-major Axis (km)']
+    e = initial_states.loc[id]['Eccentricity']
+    i = initial_states.loc[id]['Inclination (deg)']
+    raan = initial_states.loc[id]['RAAN (deg)']
+    omega = initial_states.loc[id]['Argument of Perigee (deg)']
+    M0 = initial_states.loc[id]['True Anomaly (deg)']
+    df_projected_altitude = propagate_orbit(epoch, a, e, i, raan, omega, M0, days=3, step_minutes=10)
+    data_sat = pd.merge(data_sat,df_projected_altitude,right_index=True,left_index=True,suffixes=['_from_sat','_from_proj'])
+    
+    
     if training_mode:
         if not predict_mean :
             df_features = pd.merge(data_sat,df_features,on='File Id')
-            df_features['Time_until_y'] = (df_features['Timestamp'] - df_features['Timestamp_initial']).dt.seconds
-            df_features = df_features.set_index('Timestamp').drop('File Id',axis=1)
+            df_features['Time_until_y'] = (df_features['Timestamp_from_sat'] - df_features['Timestamp_initial']).dt.seconds
+            df_features = df_features.set_index('Timestamp_from_sat').drop('File Id',axis=1)
         else:
-            df_features['Target'] = data_sat['Orbit Mean Density (kg/m^3)'].mean()
+            df_features['Target_mean'] = data_sat['Orbit Mean Density (kg/m^3)'].mean()
+            for j,i in enumerate(range(36,432,72)):
+                df_features['Target_'+str(j)] = data_sat['Orbit Mean Density (kg/m^3)'].iloc[i-36:i+36].mean() - df_features['Target_mean']
             # print(df_features)
             # df_features = df_features.to_frame().T.set_index('File Id')
     else:
         if not predict_mean:
             df_features = pd.merge(data_sat,df_features,on='File Id')
-            df_features['Time_until_y'] = (df_features['Timestamp'] - df_features['Timestamp_initial']).dt.seconds
-            df_features = df_features.set_index('Timestamp').drop('File Id',axis=1)
+            df_features['Time_until_y'] = (df_features['Timestamp_from_sat'] - df_features['Timestamp_initial']).dt.seconds
+            df_features = df_features.set_index('Timestamp_from_sat').drop('File Id',axis=1)
         else:
-            df_features = df_features.to_frame().T.set_index('File Id')
-
+            df_features = df_features.set_index('File Id')
     return df_features
 
 def get_model_feat_import(model,n=15):
@@ -436,3 +455,106 @@ def get_model_feat_import(model,n=15):
                 'feature_names': model.feature_names_}).sort_values(by=['feature_importance'], 
                                                         ascending=False)
     return data.head(n)
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter, HourLocator
+import datetime
+
+
+
+def true_to_mean_anomaly(nu, e):
+    """Convert true anomaly to mean anomaly using Kepler's equation."""
+    nu_rad = np.deg2rad(nu)
+    # Convert true anomaly to eccentric anomaly
+    E = 2 * np.arctan2(np.sqrt(1 - e) * np.sin(nu_rad/2), 
+                       np.sqrt(1 + e) * np.cos(nu_rad/2))
+    # Solve Kepler's equation to get mean anomaly
+    M = E - e * np.sin(E)
+    return np.rad2deg(M) % 360
+
+def solve_kepler(M, e, tolerance=1e-12, max_iter=100):
+    """Solve Kepler's equation using Newton-Raphson method."""
+    M = M % (2 * np.pi)
+    E = M  # Initial guess
+    for _ in range(max_iter):
+        delta = E - e * np.sin(E) - M
+        if abs(delta) < tolerance:
+            break
+        E -= delta / (1 - e * np.cos(E))
+    return E
+
+
+# Constants
+J2 = 1.08262668e-3          # J2 perturbation coefficient
+R_e = 6378.137              # Earth radius in kilometers
+mu = 398600.4418            # Earth gravitational parameter (km³/s²)
+
+def propagate_orbit(epoch, a, e, i, raan, omega, nu0, days=3, step_minutes=10):
+    """
+    Propagate orbital elements using initial true anomaly.
+    
+    :param epoch: Initial epoch (datetime object)
+    :param a: Semi-major axis (km)
+    :param e: Eccentricity
+    :param i: Inclination (degrees)
+    :param raan: Right Ascension of Ascending Node (degrees)
+    :param omega: Argument of Perigee (degrees)
+    :param nu0: Initial True Anomaly (degrees)
+    :param days: Propagation duration in days
+    :param step_minutes: Time step in minutes
+    :return: DataFrame with propagated elements and altitude
+    """
+    # Convert initial true anomaly to mean anomaly
+    M0 = true_to_mean_anomaly(nu0, e)
+    
+    # Convert angles to radians
+    i_rad = np.deg2rad(i)
+    raan_rad = np.deg2rad(raan)
+    omega_rad = np.deg2rad(omega)
+    M0_rad = np.deg2rad(M0)
+
+    # Calculate mean motion
+    n = np.sqrt(mu / a**3)  # rad/s
+
+    # Calculate J2 perturbation terms
+    dOmega_dt = -(3/2) * (n * J2 * R_e**2) / (a**2 * (1 - e**2)**2) * np.cos(i_rad)
+    domega_dt = (3/4) * (n * J2 * R_e**2) / (a**2 * (1 - e**2)**2) * (5*np.cos(i_rad)**2 - 1)
+    dM_dt = n + (3/4) * (n * J2 * R_e**2) / (a**2 * (1 - e**2)**1.5) * (3*np.cos(i_rad)**2 - 1)
+
+    # Generate time points
+    times = [epoch + timedelta(minutes=step_minutes)*k 
+             for k in range(int((24*60/step_minutes)*days) + 1)]
+
+    # Propagate elements for each time
+    data = []
+    for t in times:
+        delta_sec = (t - epoch).total_seconds()
+        
+        # Propagate angles in radians
+        new_raan = raan_rad + dOmega_dt * delta_sec
+        new_omega = omega_rad + domega_dt * delta_sec
+        new_M = M0_rad + dM_dt * delta_sec
+
+        # Calculate true anomaly and altitude
+        E = solve_kepler(new_M, e)
+        nu = 2 * np.arctan2(np.sqrt(1 + e) * np.sin(E/2), 
+                            np.sqrt(1 - e) * np.cos(E/2))
+        r = a * (1 - e**2) / (1 + e * np.cos(nu))
+        altitude = r - R_e
+
+        # Convert angles to degrees and normalize
+        data.append({
+            'Timestamp': t.strftime('%Y-%m-%d %H:%M:%S'),
+            'a (km)_proj': round(a, 3),
+            'e_proj': round(e, 6),
+            'i (deg)_proj': round(i, 3),
+            'RAAN (deg)_proj': round(np.rad2deg(new_raan) % 360, 6),
+            'Argument of Perigee (deg)_proj': round(np.rad2deg(new_omega) % 360, 6),
+            'Mean Anomaly (deg)_proj': round(np.rad2deg(new_M) % 360, 6),
+            'True Anomaly (deg)_proj': round(np.rad2deg(nu) % 360, 6),
+            'Altitude (km)_proj': round(altitude, 3)
+        })
+
+    return pd.DataFrame(data)

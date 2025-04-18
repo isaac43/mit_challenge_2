@@ -2,7 +2,7 @@
 import orekit
 from orekit.pyhelpers import setup_orekit_curdir
 
-from org.orekit.orbits import KeplerianOrbit, PositionAngleType
+from org.orekit.orbits import KeplerianOrbit, PositionAngleType,EquinoctialOrbit
 from org.orekit.frames import FramesFactory
 from org.orekit.time import TimeScalesFactory, AbsoluteDate
 from org.orekit.utils import Constants
@@ -92,26 +92,25 @@ def prop_orbit(initial_state, CustomAtmosphere, with_drag=False, plot_trajectory
     dragCoeff = kwargs.get('drag_coeff', 2.2)
 
     # Atmospheric model instantiation
-    data = kwargs.get('atm_model_data', JB2008SpaceEnvironmentData(
-        "SOLFSMY.TXT", "DTCFILE.TXT"))
-    atmosphere = CustomAtmosphere(data, sun=sun, earth=earth)
+    if with_drag:
+        data = kwargs.get('atm_model_data', JB2008SpaceEnvironmentData(
+            "SOLFSMY.TXT", "DTCFILE.TXT"))
+        atmosphere = CustomAtmosphere(data, sun=sun, earth=earth)
 
     # Start date calculation
-    tmstp = initial_state.get(
-        'Timestamp', pd.Timestamp('2013-11-30 00:00:00.00000'))
+    tmstp = initial_state.get('Timestamp')
     initialDate = AbsoluteDate(
         tmstp.year,
         tmstp.month,
         tmstp.day,
         tmstp.hour,
-        # 0,
+        #0,
         tmstp.minute,
-        # 0,
+        #0,
         float(tmstp.second),
-        # 00.000,
+        #00.000,
         utc
     )
-
     # Propagation time steps calculation
     step = kwargs.get('step', 600.0)  # Step of 10 minutes in seconds
     # Propagation horizon of 3 days in seconds
@@ -119,22 +118,23 @@ def prop_orbit(initial_state, CustomAtmosphere, with_drag=False, plot_trajectory
     tspan1 = [initialDate.shiftedBy(step*n)
               for n in range(int(horizon / step))]
 
-    # Initial Orbit preparation
-    rp0 = r_Earth + 400  # perigee radius (m)
-    rap0 = r_Earth + 600  # apogee radius (m)
+    a0 = initial_state.get('Semi-major Axis (km)')
+    semi_major_axis = a0 * 1e3
+    
     
     initial_orbit = KeplerianOrbit(
-        initial_state.get('Semi-major Axis (km)', (rp0 + rap0) / 2) * 1e3,
-        initial_state.get('Eccentricity', (rap0 - rp0) / (rap0 + rp0)),
-        initial_state.get('Inclination (deg)', 45) * deg,
-        initial_state.get('Argument of Perigee (deg)', 30) * deg,
-        initial_state.get('RAAN (deg)', 0) * deg,
-        initial_state.get('True Anomaly (deg)', 0) * deg,
+        semi_major_axis,
+        initial_state.get('Eccentricity'),
+        initial_state.get('Inclination (deg)') * deg,
+        initial_state.get('Argument of Perigee (deg)') * deg,
+        initial_state.get('RAAN (deg)') * deg,
+        initial_state.get('True Anomaly (deg)') * deg,
         PositionAngleType.TRUE,
         inertialFrame,
         initialDate,
         mu
     )
+    initial_orbit = EquinoctialOrbit(initial_orbit)
 
     # Cross sectional area and the drag coefficient
     satmodel = IsotropicDrag(crossSection, dragCoeff)
@@ -188,18 +188,17 @@ def prop_orbit(initial_state, CustomAtmosphere, with_drag=False, plot_trajectory
         propagator_num.addForceModel(dragForce)
 
     # Results generation
-    tic = time.time()
-    steps = tqdm(range(len(tspan1) - 1))
-    steps.set_description("Starting propagation...")
+    
+    steps = range(len(tspan1) - 1)
+    #steps.set_description("Starting propagation...")
 
     states = [initialState]
     for i1 in steps:
         states.append(propagator_num.propagate(tspan1[i1], tspan1[i1 + 1]))
 
-    densities = [atmosphere.getDensity(state.getDate(), state.getPVCoordinates(
-    ).getPosition(), state.getFrame()) for state in states]
+    # densities = [atmosphere.getDensity(state.getDate(), state.getPVCoordinates(
+    # ).getPosition(), state.getFrame()) for state in states]
 
-    toc = time.time()
 
     if (plot_trajectory):
         posvel = [state.getPVCoordinates() for state in states]
@@ -242,4 +241,4 @@ def prop_orbit(initial_state, CustomAtmosphere, with_drag=False, plot_trajectory
         ax.legend()
         plt.show()
 
-    return states, densities
+    return states#, densities

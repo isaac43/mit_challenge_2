@@ -232,14 +232,14 @@ class PersistenceModel(nn.Module):
         self.plot = plot_trajectory
 
     def forward(self, omni2_data, initial_state={}):
-        states, densities = prop_orbit(
+        states = prop_orbit(
             initial_state,
             MSISPersistenceAtmosphere,
-            with_drag=True,
+            with_drag=False,
             atm_model_data=omni2_data,
             plot_trajectory=self.plot
         )
-        return states, densities
+        return states
         # return self._convert_to_df(states, densities)
 
     def _convert_to_df(self, states, densities):
