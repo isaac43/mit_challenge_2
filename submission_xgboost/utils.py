@@ -1,15 +1,8 @@
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import timedelta
 import numpy as np
 import os
-from scipy.stats import linregress, entropy
-from scipy.signal import find_peaks, periodogram
-from scipy import stats
 
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.dates import DateFormatter, HourLocator
-import datetime
 
 ###### Creation of features
 
@@ -260,19 +253,19 @@ def create_features_and_target(id,initial_states,omni = None,sat = None,path='ph
     df_features = pd.merge(df_position,df_features_from_omni,on='File Id')
 
    
-    #Project Altitude
-    epoch = initial_states.loc[id]['Timestamp']
-    a = initial_states.loc[id]['Semi-major Axis (km)']
-    e = initial_states.loc[id]['Eccentricity']
-    i = initial_states.loc[id]['Inclination (deg)']
-    raan = initial_states.loc[id]['RAAN (deg)']
-    omega = initial_states.loc[id]['Argument of Perigee (deg)']
-    M0 = initial_states.loc[id]['True Anomaly (deg)']
+    # #Project Altitude
+    # epoch = initial_states.loc[id]['Timestamp']
+    # a = initial_states.loc[id]['Semi-major Axis (km)']
+    # e = initial_states.loc[id]['Eccentricity']
+    # i = initial_states.loc[id]['Inclination (deg)']
+    # raan = initial_states.loc[id]['RAAN (deg)']
+    # omega = initial_states.loc[id]['Argument of Perigee (deg)']
+    # M0 = initial_states.loc[id]['True Anomaly (deg)']
 
-    epoch = epoch + timedelta(seconds=(10-epoch.second%10)%10)
+    # epoch = epoch + timedelta(seconds=(10-epoch.second%10)%10)
 
-    df_projected_altitude = propagate_orbit(epoch, a, e, i, raan, omega, M0, days=3, step_minutes=10)
-    data_sat = pd.merge_ordered(data_sat,df_projected_altitude,on = 'Timestamp')
+    # df_projected_altitude = propagate_orbit(epoch, a, e, i, raan, omega, M0, days=3, step_minutes=10)
+    #data_sat = pd.merge_ordered(data_sat,df_projected_altitude,on = 'Timestamp')
 
     
     if training_mode:
@@ -281,8 +274,8 @@ def create_features_and_target(id,initial_states,omni = None,sat = None,path='ph
             df_features['Time_until_y'] = (df_features['Timestamp'] - df_features['Timestamp_initial']).dt.seconds
         else:
             df_features['Target_mean'] = data_sat['Orbit Mean Density (kg/m^3)'].mean()
-            for j,i in enumerate(range(36,432,72)):
-                df_features['Target_'+str(j)] = data_sat['Orbit Mean Density (kg/m^3)'].iloc[i-36:i+36].mean() - df_features['Target_mean']
+            # for j,i in enumerate(range(36,432,72)):
+            #     df_features['Target_'+str(j)] = data_sat['Orbit Mean Density (kg/m^3)'].iloc[i-36:i+36].mean() - df_features['Target_mean']
     else:
         if not predict_mean:
             df_features = pd.merge(data_sat,df_features,on='File Id')
